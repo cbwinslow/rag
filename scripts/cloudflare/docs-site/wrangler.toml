@@ -1,0 +1,10 @@
+name = "rag-docs-site"
+compatibility_date = "2024-01-01"
+
+[env.production]
+# Pages configuration will be handled separately
+# This is for reference if we want to deploy as a Worker
+
+[vars]
+SITE_TITLE = "RAG System Documentation"
+API_BASE_URL = "https://api.rag-cloudflare.pages.dev"

@@ -1,0 +1,14 @@
+- hosts: all
+  gather_facts: false
+  tasks:
+    - name: Ensure .ssh dir exists
+      file:
+        path: ~/.ssh
+        state: directory
+        mode: '0700'
+
+    - name: Copy public key to authorized_keys
+      ansible.posix.authorized_key:
+        user: "{{ ansible_user | default('root') }}"
+        state: present
+        key: "{{ lookup('file', pubkey_path) }}"

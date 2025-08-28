@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG System Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #007acc;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .endpoint {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007acc;
+        }
+        .method {
+            font-weight: bold;
+            color: #007acc;
+        }
+        code {
+            background: #e8e8e8;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>RAG System API Documentation</h1>
+        <p>Cloudflare-hosted RAG system with govinfo and congress data integration</p>
+    </div>
+
+    <h2>Overview</h2>
+    <p>This RAG (Retrieval-Augmented Generation) system provides APIs for searching and managing documents from government sources including govinfo.gov and congress.gov. The system is hosted on Cloudflare Workers and integrates with the autorag database.</p>
+
+    <h2>Base URL</h2>
+    <p><code>https://api.rag-cloudflare.pages.dev</code></p>
+
+    <h2>Authentication</h2>
+    <p>Include your API key in the Authorization header:</p>
+    <pre><code>Authorization: Bearer YOUR_API_KEY</code></pre>
+
+    <h2>API Endpoints</h2>
+
+    <div class="endpoint">
+        <h3><span class="method">GET</span> /api/health</h3>
+        <p>Check system health and connectivity</p>
+        <p><strong>Response:</strong></p>
+        <pre><code>{
+  "status": "healthy",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "services": {
+    "kv": "connected"
+  }
+}</code></pre>
+    </div>
+
+    <div class="endpoint">
+        <h3><span class="method">POST</span> /api/search</h3>
+        <p>Search documents using natural language queries</p>
+        <p><strong>Request Body:</strong></p>
+        <pre><code>{
+  "query": "climate change legislation",
+  "limit": 10,
+  "filters": {
+    "source": "govinfo",
+    "date_from": "2024-01-01"
+  }
+}</code></pre>
+        <p><strong>Response:</strong></p>
+        <pre><code>{
+  "success": true,
+  "query": "climate change legislation",
+  "results": [...],
+  "total": 5
+}</code></pre>
+    </div>
+
+    <div class="endpoint">
+        <h3><span class="method">GET</span> /api/documents</h3>
+        <p>Retrieve documents with pagination</p>
+        <p><strong>Query Parameters:</strong></p>
+        <ul>
+            <li><code>limit</code> (optional): Number of documents to return (default: 10)</li>
+            <li><code>offset</code> (optional): Number of documents to skip (default: 0)</li>
+        </ul>
+        <p><strong>Response:</strong></p>
+        <pre><code>{
+  "success": true,
+  "documents": [...],
+  "limit": 10,
+  "offset": 0,
+  "total": 25
+}</code></pre>
+    </div>
+
+    <div class="endpoint">
+        <h3><span class="method">POST</span> /api/ingest</h3>
+        <p>Ingest new documents into the system</p>
+        <p><strong>Request Body:</strong></p>
+        <pre><code>{
+  "documents": [
+    {
+      "title": "Document Title",
+      "content": "Document content...",
+      "summary": "Brief summary",
+      "metadata": {
+        "source": "govinfo",
+        "url": "https://example.com"
+      }
+    }
+  ],
+  "source": "api"
+}</code></pre>
+        <p><strong>Response:</strong></p>
+        <pre><code>{
+  "success": true,
+  "message": "1 documents ingested successfully",
+  "stored_count": 1
+}</code></pre>
+    </div>
+
+    <h2>Data Sources</h2>
+    <ul>
+        <li><strong>govinfo.gov</strong>: Official government publications and documents</li>
+        <li><strong>congress.gov</strong>: Congressional bills, resolutions, and records</li>
+        <li><strong>opendiscourse.net</strong>: Parliamentary proceedings and debates</li>
+    </ul>
+
+    <h2>Integration with AutoRAG</h2>
+    <p>This system integrates with the opendiscourse.net-cf AutoRAG database to provide enhanced document retrieval and question-answering capabilities. Documents ingested through this API are automatically indexed and made available to the AutoRAG system.</p>
+
+    <h2>Error Handling</h2>
+    <p>All API endpoints return standardized error responses:</p>
+    <pre><code>{
+  "error": "Error Type",
+  "message": "Detailed error message"
+}</code></pre>
+
+    <h2>Rate Limits</h2>
+    <p>API requests are subject to Cloudflare Workers rate limits. For high-volume usage, consider implementing caching or batch processing.</p>
+
+    <h2>Support</h2>
+    <p>For questions or issues, please refer to the project repository or contact the development team.</p>
+</body>
+</html>

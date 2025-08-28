@@ -1,0 +1,22 @@
+name = "rag-install"
+compatibility_date = "2025-08-28"
+
+# Replace with your Cloudflare Account ID
+account_id = "968ff4ee9f5e59bc6c72758269d6b9d6"
+
+# Pages configuration
+pages_build_output_dir = "."
+
+# Environment variables (optional)
+[vars]
+REPO_URL = "https://github.com/cbwinslow/rag.git"
+
+# Build configuration for static site
+[build]
+command = "echo 'Static site - no build needed'"
+cwd = "."
+
+# Optional: Custom domain (uncomment and set if you have one)
+# pages_build_config = [
+#   { custom_domain = "install.yourdomain.com" }
+# ]

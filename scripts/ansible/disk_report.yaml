@@ -1,0 +1,37 @@
+- hosts: all
+  gather_facts: false
+  tasks:
+    - name: Run lsblk JSON
+      shell: lsblk -b -J
+      register: lsblk_json
+
+    - name: Run df
+      shell: df -hT
+      register: df_out
+
+    - name: Run parted free per disk (list disks)
+      shell: |
+        for d in $(lsblk -dn -o NAME,TYPE | awk '$2=="disk"{print $1}'); do
+          echo "--- /dev/$d ---"; parted -s /dev/$d unit B print free || true
+        done
+      register: parted_out
+
+    - name: Collect pvs/vgs/lvs
+      shell: pvs 2>/dev/null || true; vgs 2>/dev/null || true; lvs 2>/dev/null || true
+      register: lvm_out
+
+    - name: Write report to file on controller
+      copy:
+        dest: "/tmp/disk-report-{{ inventory_hostname }}.txt"
+        content: |
+          ===LSBLK_JSON===
+          {{ lsblk_json.stdout }}
+
+          ===DF===
+          {{ df_out.stdout }}
+
+          ===PARTED===
+          {{ parted_out.stdout }}
+
+          ===LVM===
+          {{ lvm_out.stdout }}

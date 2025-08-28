@@ -1,5 +1,8 @@
 {
   "devDependencies": {
     "@types/node": "^22.13.4"
+  },
+  "dependencies": {
+    "@sentry/nextjs": "^10.7.0"
   }
 }

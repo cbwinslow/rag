@@ -33,12 +33,37 @@ find_and_export(){
 
 echo "Auto-setup for Cloudflare & GitHub secrets (searching common env name variants)"
 
+# Source .bash_secrets if it exists to load existing secrets
+if [ -f "$HOME/.bash_secrets" ]; then
+  echo "Sourcing $HOME/.bash_secrets to load existing secrets"
+  # shellcheck disable=SC1090
+  source "$HOME/.bash_secrets"
+fi
+
 # Search for common secret name variants
-find_and_export CF_API_TOKEN CF_API_TOKEN CF_TOKEN CLOUDFLARE_TOKEN WF_API_TOKEN
+find_and_export CF_API_TOKEN CF_API_TOKEN CF_TOKEN CLOUDFLARE_TOKEN WF_API_TOKEN CLOUDFLARE_API_TOKEN
 find_and_export CF_ACCOUNT_ID CF_ACCOUNT_ID CLOUDFLARE_ACCOUNT_ID ACCOUNT_ID
 find_and_export GOVINFO_API_KEY GOVINFO_API_KEY GOV_INFO_KEY GOVINFO GOV_INFO GOV_KEY
 find_and_export AUTORAG_API_KEY AUTORAG_API_KEY AUTORAG_KEY AUTORAG API_KEY
 find_and_export REPO REPO GITHUB_REPO GIT_REPO
+find_and_export GITHUB_TOKEN GITHUB_TOKEN GH_TOKEN PAT_TOKEN
+find_and_export DOCKER_USERNAME DOCKER_USERNAME DOCKER_USER
+find_and_export DOCKER_PASSWORD DOCKER_PASSWORD DOCKER_PASS
+find_and_export OPENROUTER_API_KEY OPENROUTER_API_KEY OPENROUTER_KEY
+find_and_export AWS_ACCESS_KEY_ID AWS_ACCESS_KEY_ID AWS_KEY_ID
+find_and_export AWS_SECRET_ACCESS_KEY AWS_SECRET_ACCESS_KEY AWS_SECRET_KEY
+find_and_export POSTGRES_URL POSTGRES_URL DATABASE_URL DB_URL
+
+# Scan common local files (if present) for exported variables and report candidate names
+scan_files=("$HOME/bash_secrets" "$HOME/.bash_secrets" "$HOME/.bashrc" "$HOME/.profile" "$HOME/.bash_profile" "/etc/bash_secrets" "$HOME/.env")
+echo "Scanning common files for secret variable names (no values will be printed)"
+for f in "${scan_files[@]}"; do
+  if [ -f "$f" ]; then
+    echo "Found file: $f"
+    # print exported variable names only
+    grep -E "^[[:space:]]*(export )?[A-Z0-9_]+=" "$f" || true
+  fi
+done
 
 # Ensure node/npm present for wrangler
 if ! command -v wrangler >/dev/null 2>&1; then
@@ -90,5 +115,8 @@ fi
 
 echo "Optionally publish now. To publish worker and pages run:"
 echo "  CF_API_TOKEN=... CF_ACCOUNT_ID=... ./scripts/cloudflare/deploy_remote.sh --publish-worker --publish-pages"
+echo ""
+echo "To deploy just the install pages site:"
+echo "  ./scripts/cloudflare/deploy_remote.sh --publish-pages"
 
 echo "Done."

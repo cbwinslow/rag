@@ -1,0 +1,40 @@
+- hosts: ragservers
+  become: true
+  vars:
+    remote_user: "{{ ansible_user | default(ansible_ssh_user | default('%s')) }}"
+  tasks:
+    - name: Ensure remote path exists
+      file:
+        path: "{{ remote_path | default('/opt/rag') }}"
+        state: directory
+        owner: "{{ remote_user }}"
+        mode: '0755'
+
+    - name: Copy repository to remote host (rsync via Ansible)
+      synchronize:
+        src: "{{ playbook_dir | dirname | dirname }}"
+        dest: "{{ remote_path | default('/opt/rag') }}"
+        delete: yes
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=data/dataset.zip"
+
+    - name: Ensure launch script is executable
+      file:
+        path: "{{ remote_path | default('/opt/rag') }}/scripts/launch.sh"
+        mode: '0755'
+
+    - name: Run launcher on remote host
+      shell: |
+        set -euo pipefail
+        cd "{{ remote_path | default('/opt/rag') }}"
+        export NGC_API_KEY="{{ ngc_api_key | default(lookup('env','NGC_API_KEY')) }}"
+        export MODEL_DIRECTORY="{{ model_directory | default('~/.cache/model-cache') }}"
+        ./scripts/launch.sh --profile "{{ deploy_profile | default('none') }}"
+      args:
+        chdir: "{{ remote_path | default('/opt/rag') }}"
+      register: launch_result
+
+    - name: Show launcher output
+      debug:
+        var: launch_result.stdout_lines

@@ -1,0 +1,24 @@
+name: Deploy Pages site
+
+on:
+  push:
+    paths:
+      - 'scripts/installer/**'
+    branches: [ main ]
+
+jobs:
+  deploy-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pages bundle
+        run: |
+          ./scripts/installer/build_pages_site.sh --public-key scripts/installer/example_keys/rag_deploy.pub --domain my-rag.pages.dev --outdir site_dist
+      - name: Install Wrangler
+        run: npm install -g wrangler
+      - name: Publish Pages
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          wrangler pages publish site_dist --project-name rag-bootstrap --branch main

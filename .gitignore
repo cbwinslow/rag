@@ -79,3 +79,5 @@ coverage.xml
 cover/
 
 # Workbench Project Layout
+# Sentry Config File
+.env.sentry-build-plugin

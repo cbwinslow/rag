@@ -1,0 +1,22 @@
+name = "rag-opendiscourse-worker"
+main = "./index.js"
+compatibility_date = "2025-08-28"
+type = "javascript"
+
+# Replace the placeholder values below with your Cloudflare Account ID and other settings
+account_id = "968ff4ee9f5e59bc6c72758269d6b9d6"
+workers_dev = true
+
+# Example KV namespace binding - create a KV namespace in Cloudflare and put the id below
+[[kv_namespaces]]
+binding = "AUTORAG_KV"
+id = "YOUR_AUTORAG_KV_ID"
+
+[vars]
+# GOVINFO_API_KEY and AUTORAG_API_KEY can be stored as Wrangler secrets or as env bindings
+# GOVINFO_API_KEY = "..."
+# AUTORAG_API_KEY = "..."
+
+[triggers]
+# Optional schedule trigger example (CRON): Uncomment and adjust as needed
+# crons = [ "0 3 * * *" ]

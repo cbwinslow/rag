@@ -1,0 +1,44 @@
+- hosts: all
+  gather_facts: false
+  vars:
+    target_disk: ""
+    vg_name: ""
+    lv_name: ""
+    lv_size: ""
+    do_apply: false
+  tasks:
+    - name: Fail if no target_disk provided
+      fail:
+        msg: "Provide target_disk via --extra-vars target_disk=/dev/sdX"
+      when: target_disk == ""
+
+    - name: Show current lsblk
+      shell: lsblk -o NAME,SIZE,TYPE,MOUNTPOINT {{ target_disk }} || true
+      register: lsblk_before
+
+    - name: Debug lsblk
+      debug: var=lsblk_before.stdout
+
+    - name: Create PV
+      shell: pvcreate -ff -y {{ target_disk }}
+      when: do_apply
+
+    - name: Create or extend VG
+      shell: |
+        if vgdisplay {{ vg_name }} >/dev/null 2>&1; then
+          vgextend {{ vg_name }} {{ target_disk }}
+        else
+          vgcreate {{ vg_name }} {{ target_disk }}
+        fi
+      when: do_apply and vg_name != ""
+
+    - name: Create LV
+      shell: lvcreate -n {{ lv_name }} -L {{ lv_size }} {{ vg_name }}
+      when: do_apply and lv_name != ""
+
+    - name: Show lsblk after
+      shell: lsblk -o NAME,SIZE,TYPE,MOUNTPOINT {{ target_disk }} || true
+      register: lsblk_after
+
+    - name: Debug lsblk after
+      debug: var=lsblk_after.stdout
