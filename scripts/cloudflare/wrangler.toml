@@ -1,21 +1,42 @@
-name = "rag-opendiscourse-worker"
+name = "rag-services-proxy"
 main = "./index.js"
-compatibility_date = "2025-08-28"
+compatibility_date = "2025-08-29"
 type = "javascript"
+
+[env.production]
+vars = {
+  RAG_SERVICE_URL = "https://rag.opendiscourse.net/v1",
+  INGESTOR_SERVICE_URL = "https://ingestor.opendiscourse.net/v1"
+}
 
 # Replace the placeholder values below with your Cloudflare Account ID and other settings
 account_id = "968ff4ee9f5e59bc6c72758269d6b9d6"
 workers_dev = true
 
-# Example KV namespace binding - create a KV namespace in Cloudflare and put the id below
+# KV namespace for document storage
 [[kv_namespaces]]
 binding = "AUTORAG_KV"
 id = "YOUR_AUTORAG_KV_ID"
+
+# D1 database for structured document storage
+[[d1_databases]]
+binding = "AUTORAG_DB"
+database_name = "rag_documents"
+database_id = "YOUR_D1_DATABASE_ID"
+
+# R2 bucket for file storage
+[[r2_buckets]]
+binding = "AUTORAG_R2"
+bucket_name = "rag-documents"
+bucket_id = "YOUR_R2_BUCKET_ID"
 
 [vars]
 # GOVINFO_API_KEY and AUTORAG_API_KEY can be stored as Wrangler secrets or as env bindings
 # GOVINFO_API_KEY = "..."
 # AUTORAG_API_KEY = "..."
+# Supabase configuration
+SUPABASE_URL = "https://your-project.supabase.co"
+SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY"
 
 [triggers]
 # Optional schedule trigger example (CRON): Uncomment and adjust as needed

@@ -53,6 +53,8 @@ find_and_export OPENROUTER_API_KEY OPENROUTER_API_KEY OPENROUTER_KEY
 find_and_export AWS_ACCESS_KEY_ID AWS_ACCESS_KEY_ID AWS_KEY_ID
 find_and_export AWS_SECRET_ACCESS_KEY AWS_SECRET_ACCESS_KEY AWS_SECRET_KEY
 find_and_export POSTGRES_URL POSTGRES_URL DATABASE_URL DB_URL
+find_and_export SUPABASE_URL SUPABASE_URL
+find_and_export SUPABASE_ANON_KEY SUPABASE_ANON_KEY SUPABASE_KEY
 
 # Scan common local files (if present) for exported variables and report candidate names
 scan_files=("$HOME/bash_secrets" "$HOME/.bash_secrets" "$HOME/.bashrc" "$HOME/.profile" "$HOME/.bash_profile" "/etc/bash_secrets" "$HOME/.env")
@@ -84,14 +86,34 @@ cd scripts/cloudflare || exit 1
 
 echo "Writing Worker secrets (wrangler secret put). This requires that wrangler is authenticated or CF_API_TOKEN is configured."
 
-if [ -n "${GOVINFO_API_KEY:-}" ]; then
-  printf "%s" "$GOVINFO_API_KEY" | wrangler secret put GOVINFO_API_KEY || echo "wrangler secret put GOVINFO_API_KEY failed"
+if [ -n "${SUPABASE_URL:-}" ]; then
+  printf "%s" "$SUPABASE_URL" | wrangler secret put SUPABASE_URL || echo "wrangler secret put SUPABASE_URL failed"
 fi
-if [ -n "${AUTORAG_API_KEY:-}" ]; then
-  printf "%s" "$AUTORAG_API_KEY" | wrangler secret put AUTORAG_API_KEY || echo "wrangler secret put AUTORAG_API_KEY failed"
+if [ -n "${SUPABASE_ANON_KEY:-}" ]; then
+  printf "%s" "$SUPABASE_ANON_KEY" | wrangler secret put SUPABASE_ANON_KEY || echo "wrangler secret put SUPABASE_ANON_KEY failed"
 fi
 
 echo "Secrets set (or attempted)."
+
+# Create Cloudflare assets if credentials are available
+if [ -n "${CF_API_TOKEN:-}" ] && [ -n "${CF_ACCOUNT_ID:-}" ]; then
+  echo "Creating Cloudflare assets (KV, D1, R2)..."
+  if [ -f "create_cloudflare_assets.sh" ]; then
+    bash create_cloudflare_assets.sh
+  else
+    echo "create_cloudflare_assets.sh not found, skipping asset creation"
+  fi
+fi
+
+# Set up Supabase if credentials are available
+if [ -n "${SUPABASE_URL:-}" ] && [ -n "${SUPABASE_ANON_KEY:-}" ]; then
+  echo "Setting up Supabase tables..."
+  if [ -f "setup_supabase.sh" ]; then
+    bash setup_supabase.sh
+  else
+    echo "setup_supabase.sh not found, skipping Supabase setup"
+  fi
+fi
 
 cd - >/dev/null || true
 

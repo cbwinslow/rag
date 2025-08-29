@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  reverse-proxy:
+    image: traefik:v2.10
+    command:
+      - --api.insecure=true
+      - --providers.docker
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - public
+
+  supabase:
+    image: supabase/postgres:latest
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    ports:
+      - "3000:3000"
+    networks:
+      - public
+    labels:
+      - "traefik.http.routers.supabase.rule=Host(`${SUPABASE_DOMAIN}`)"
+
+  cloudflare-waf:
+    image: cloudflare/cloudflare-waf
+    ports:
+      - "8888:8888"
+    networks:
+      - public
+
+  ai-orchestrator:
+    image: ai-orchestrator:latest
+    build: ./src/orchestrator
+    ports:
+      - "8050:8050"
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOKI_URL=http://loki:3100
+    networks:
+      - monitoring
+      - internal
+    depends_on:
+      - prometheus
+      - loki
+
+networks:
+  public:
+  internal:
+  monitoring:

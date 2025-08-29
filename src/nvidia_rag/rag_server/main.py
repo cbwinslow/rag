@@ -569,10 +569,17 @@ class NvidiaRAG():
                 raise APIError("Invalid filter expression.", 400)
 
             document_embedder = get_embedding_model(model=embedding_model, url=embedding_endpoint)
-            # Initialize vector stores for each collection name
+            # Initialize vector stores for each collection name with connection cleanup
             vector_stores = []
-            for collection_name in collection_names:
-                vector_stores.append(get_vectorstore(document_embedder, collection_name, vdb_endpoint))
+            try:
+                for collection_name in collection_names:
+                    vs = get_vectorstore(document_embedder, collection_name, vdb_endpoint)
+                    if hasattr(vs, 'connect'):
+                        vs.connect()
+                    vector_stores.append(vs)
+            except Exception as e:
+                logger.error("Vector store connection failed: %s", e)
+                raise APIError("Failed to initialize vector stores") from e
 
             # Check if all vector stores are initialized properly
             for vs in vector_stores:
@@ -679,20 +686,30 @@ class NvidiaRAG():
 
                     # Perform parallel retrieval from all vector stores
                     docs = []
-                    with ThreadPoolExecutor() as executor:
-                        futures = [executor.submit(retreive_docs_from_retriever, retriever=retriever, retriever_query=query, expr=filter_expr, otel_ctx=otel_ctx) for retriever in retrievers]
-                        for future in futures:
-                            docs.extend(future.result())
-
-                    start_time = time.time()
-                    docs = context_reranker.invoke({"context": docs, "question": query}, config={'run_name':'context_reranker'})
+                    try:
+                        with ThreadPoolExecutor() as executor:
+                            futures = [executor.submit(retreive_docs_from_retriever, retriever=retriever, retriever_query=query, expr=filter_expr, otel_ctx=otel_ctx) for retriever in retrievers]
+                            for future in futures:
+                                docs.extend(future.result())
+                        
+                        start_time = time.time()
+                        docs = context_reranker.invoke({"context": docs, "question": query}, config={'run_name':'context_reranker'})
+                    finally:
+                        for vs in vector_stores:
+                            if hasattr(vs, 'disconnect'):
+                                vs.disconnect()
                     logger.info("    == Context reranker time: %.2f ms ==", (time.time() - start_time) * 1000)
                     context_to_show = docs.get("context", [])
                     # Normalize scores to 0-1 range
                     context_to_show = self.__normalize_relevance_scores(context_to_show)
                 else:
                     # Multiple retrievers are not supported when reranking is disabled
-                    docs = retreive_docs_from_retriever(retriever=retrievers[0], retriever_query=query, expr=filter_expr, otel_ctx=otel_ctx)
+                    try:
+                        docs = retreive_docs_from_retriever(retriever=retrievers[0], retriever_query=query, expr=filter_expr, otel_ctx=otel_ctx)
+                    finally:
+                        for vs in vector_stores:
+                            if hasattr(vs, 'disconnect'):
+                                vs.disconnect()
                     context_to_show = docs
 
             if enable_vlm_inference:

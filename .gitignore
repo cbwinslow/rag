@@ -81,3 +81,10 @@ cover/
 # Workbench Project Layout
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Supabase local env (secrets)
+.env.supabase
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md

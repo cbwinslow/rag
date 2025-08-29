@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      - --api.insecure=true
+      - --providers.docker
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - public
+      - internal
+
+  orchestrator:
+    image: ai-orchestrator:latest
+    build: ./orchestrator
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOKI_URL=http://loki:3100
+      - OPENSEARCH_URL=http://opensearch:9200
+    labels:
+      - "traefik.http.routers.orchestrator.rule=Host(`orchestrator.example.com`)"
+      - "traefik.http.services.orchestrator.loadbalancer.server.port=8050"
+    networks:
+      - internal
+    depends_on:
+      - prometheus
+      - loki
+      - opensearch
+
+  ai-agent:
+    image: ai-agent:latest  
+    environment:
+      - ORCHESTRATOR_URL=http://orchestrator:8050
+      - PODMAN_API_URL=http://podman:8085
+    networks:
+      - internal
+
+  supabase:
+    image: supabase/postgres:latest
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+    ports:
+      - "3000:3000"
+    networks:
+      - public
+
+  cloudflare-waf:
+    image: cloudflare/cloudflare-waf
+    ports:
+      - "8888:8888"
+    networks:
+      - public
+
+  # Monitoring stack
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    networks:
+      - internal
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    networks:
+      - internal
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    networks:
+      - internal
+
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    ports:
+      - "9200:9200"
+    networks:
+      - internal
+
+networks:
+  public:
+    external: true
+  internal:
+    external: false

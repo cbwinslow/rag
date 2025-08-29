@@ -1,0 +1,9 @@
+{
+  "ts": "2025-08-28T20:43:06.857Z",
+  "cloudflare": null,
+  "proxmox": null,
+  "notes": [
+    "Cloudflare credentials missing: set CF_API_TOKEN and CF_ACCOUNT_ID",
+    "Proxmox host missing: set PROXMOX_HOST or PVE_HOST"
+  ]
+}

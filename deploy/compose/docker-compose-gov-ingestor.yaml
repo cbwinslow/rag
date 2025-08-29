@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  gov-ingestor:
+    build:
+      context: ../..
+      dockerfile: scripts/ingest/Dockerfile.gov-ingestor
+    container_name: gov-ingestor
+    environment:
+      - GOVINFO_API_KEY=${GOVINFO_API_KEY}
+      - CONGRESS_API_KEY=${CONGRESS_API_KEY}
+      - APP_VECTORSTORE_URL=http://milvus:19530
+      - APP_EMBEDDINGS_SERVER_URL=http://nemoretriever-embedding-ms:8000
+      - APP_VECTORSTORE_DEFAULT_COLLECTION=government_docs
+      - APP_VECTORSTORE_CONSISTENCYLEVEL=Strong
+      - APP_VECTORSTORE_URL=http://milvus:19530
+      - APP_EMBEDDINGS_SERVER_URL=http://nemoretriever-embedding-ms:8000
+      - APP_VECTORSTORE_DEFAULT_COLLECTION=government_docs
+    networks:
+      - nvidia-rag
+    depends_on:
+      - milvus
+      - nemoretriever-embedding-ms
+    command: ["python", "-m", "gov_ingest"]
+
+networks:
+  nvidia-rag:
+    external: true

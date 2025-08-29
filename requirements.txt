@@ -1,2 +1,8 @@
 jupyterlab>3.0
 aiohttp
+requests==2.32.0  # HTTP client for API interactions
+uvloop==0.19.0    # Async event loop
+python-dotenv==1.0.1  # Environment variable management
+pymilvus==2.3.7   # Milvus vector database client
+beautifulsoup4==4.12.3  # HTML parsing for document processing
+python-dotenv==1.0.1

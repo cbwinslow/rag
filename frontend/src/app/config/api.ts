@@ -18,7 +18,7 @@
 export const API_CONFIG = {
   VDB: {
     BASE_URL:
-      process.env.NEXT_PUBLIC_VDB_BASE_URL ?? "http://localhost:8082/v1",
+      process.env.NEXT_PUBLIC_VDB_BASE_URL ?? "https://ingestor.opendiscourse.net/v1",
     ENDPOINTS: {
       DOCUMENTS: {
         LIST: "/documents",
@@ -36,7 +36,7 @@ export const API_CONFIG = {
   },
   CHAT: {
     BASE_URL:
-      process.env.NEXT_PUBLIC_CHAT_BASE_URL ?? "http://localhost:8081/v1",
+      process.env.NEXT_PUBLIC_CHAT_BASE_URL ?? "https://rag.opendiscourse.net/v1",
     ENDPOINTS: {
       RAG: {
         GENERATE: "/generate",

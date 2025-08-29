@@ -29,8 +29,12 @@ services:
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted
       APP_VECTORSTORE_URL: "http://milvus:19530"
+      # Disable GPU acceleration for indexing/search if using B200/A100 GPUs
+      APP_VECTORSTORE_ENABLEGPUINDEX: "False"
+      APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
       # Type of vectordb used to store embedding supported type milvus
       APP_VECTORSTORE_NAME: "milvus"
+      # GPU acceleration controls (explicitly disabled for B200/A100 compatibility)
       # Type of index to be used for vectorstore
       APP_VECTORSTORE_INDEXTYPE: ${APP_VECTORSTORE_INDEXTYPE:-"GPU_CAGRA"}
       # Type of vectordb search to be used
@@ -46,12 +50,12 @@ services:
       ##===LLM Model specific configurations===
       APP_LLM_MODELNAME: ${APP_LLM_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1"}
       # url on which llm model is hosted. If "", Nvidia hosted API is used
-      APP_LLM_SERVERURL: ${APP_LLM_SERVERURL-"nim-llm:8000"}
+      APP_LLM_SERVERURL: ${APP_LLM_SERVERURL-"${NIM_LLM_SERVICE}:8000"}
 
       ##===Query Rewriter Model specific configurations===
       APP_QUERYREWRITER_MODELNAME: ${APP_QUERYREWRITER_MODELNAME:-"meta/llama-3.1-8b-instruct"}
       # url on which query rewriter model is hosted. If "", Nvidia hosted API is used
-      APP_QUERYREWRITER_SERVERURL: ${APP_QUERYREWRITER_SERVERURL-"nim-llm-llama-8b:8000"}
+      APP_QUERYREWRITER_SERVERURL: ${APP_QUERYREWRITER_SERVERURL-"${NIM_QUERYREWRITER_SERVICE}:8000"}
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used

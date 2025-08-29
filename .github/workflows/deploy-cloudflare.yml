@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare
+name: Deploy RAG Services to Cloudflare
 
 on:
   push:
@@ -21,3 +21,5 @@ jobs:
         run: |
           cd scripts/cloudflare
           wrangler publish --env production
+          wrangler secret:put RAG_SERVICE_URL --env production
+          wrangler secret:put INGESTOR_SERVICE_URL --env production

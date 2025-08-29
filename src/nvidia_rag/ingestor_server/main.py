@@ -60,6 +60,7 @@ from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.ingestor_server.nvingest import get_nv_ingest_client, get_nv_ingest_ingestor
 from nvidia_rag.utils.common import get_config
 from nvidia_rag.ingestor_server.task_handler import INGESTION_TASK_HANDLER
+from scripts.ingest.gov_source_ingestor import GovDataIngestor
 from nv_ingest_client.util.file_processing.extract import EXTENSION_TO_DOCUMENT_TYPE
 from nvidia_rag.utils.minio_operator import (get_minio_operator,
                                       get_unique_thumbnail_id_collection_prefix,

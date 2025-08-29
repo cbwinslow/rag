@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: supabase-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supabase_password}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - supabase_db_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+
+  # Minimal Supabase REST/Realtime components can be added as needed. For many use-cases
+  # just Postgres + PostgREST (or direct Postgres access) is sufficient. Add services
+  # here if you need auth (gotrue), storage, or realtime.
+
+  postgrest:
+    image: postgrest/postgrest
+    container_name: supabase-postgrest
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: "postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-supabase_password}@db:5432/${POSTGRES_DB:-postgres}"
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:-supersecretjwt}
+    ports:
+      - "${POSTGREST_HOST_PORT:-3000}:3000"
+    depends_on:
+      - db
+
+volumes:
+  supabase_db_data:
