@@ -5,7 +5,23 @@ set -euo pipefail
 # Generates a .env.supabase file with required secrets for the local docker-compose supabase stack.
 
 OUTFILE=".env.supabase"
-echo "Generating $OUTFILE"
+FORCE=0
+NO_INTERACTIVE=0
+
+# Simple CLI
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --force)
+      FORCE=1; shift ;;
+    --no-interactive)
+      NO_INTERACTIVE=1; shift ;;
+    -h|--help)
+      echo "Usage: $0 [--force] [--no-interactive]"; exit 0 ;;
+    *) echo "Unknown arg: $1"; exit 1 ;;
+  esac
+done
+
+echo "Generating $OUTFILE (force=$FORCE, no-interactive=$NO_INTERACTIVE)"
 
 function write_env() {
   key="$1"
@@ -13,8 +29,13 @@ function write_env() {
   echo "$key=$val" >> "$OUTFILE"
 }
 
-if [ -f "$OUTFILE" ]; then
-  echo "$OUTFILE already exists. Backing up to ${OUTFILE}.$(date +%s)"
+if [ -f "$OUTFILE" ] && [ "$FORCE" -eq 0 ]; then
+  echo "$OUTFILE already exists. Use --force to regenerate or remove the file to create a new one. Leaving existing file in place."
+  exit 0
+fi
+
+if [ -f "$OUTFILE" ] && [ "$FORCE" -eq 1 ]; then
+  echo "$OUTFILE already exists and --force specified. Backing up to ${OUTFILE}.$(date +%s)"
   mv "$OUTFILE" "${OUTFILE}.$(date +%s)"
 fi
 
@@ -29,10 +50,14 @@ fi
 echo "# Generated Supabase env for local docker-compose" > "$OUTFILE"
 
 if [ "$BW_AVAILABLE" = true ]; then
-  echo "Bitwarden CLI detected. Attempting to read secrets from your vault (interactive)."
-  echo "Make sure you are logged in (bw login) and have an active session (eval \"$(bw unlock --raw)\")."
+    echo "Bitwarden CLI detected. Attempting to read secrets from your vault (interactive)."
+    echo "Make sure you are logged in (bw login) and have an active session (eval \"$(bw unlock --raw)\")."
 
-  read -rp "Enter Bitwarden item id or name that contains supabase secrets (or leave blank to skip): " BW_ITEM
+    if [ "$NO_INTERACTIVE" -eq 1 ] || [ ! -t 0 ]; then
+      BW_ITEM=""
+    else
+      read -rp "Enter Bitwarden item id or name that contains supabase secrets (or leave blank to skip): " BW_ITEM
+    fi
 
   if [ -n "$BW_ITEM" ]; then
     # Try to fetch fields by common names; fall back to interactive prompts

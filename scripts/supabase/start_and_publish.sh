@@ -6,8 +6,14 @@ set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
-echo "1) Generate .env.supabase (interactive, may use bw)"
-"$BASE_DIR/scripts/supabase/generate_supabase_env.sh"
+echo "1) Ensure .env.supabase exists (generate if missing)."
+# Only generate if missing, or if FORCE_GENERATE=1 is exported
+if [ ! -f "$BASE_DIR/.env.supabase" ] || [ "${FORCE_GENERATE:-0}" -eq 1 ]; then
+  echo "Generating .env.supabase"
+  "$BASE_DIR/scripts/supabase/generate_supabase_env.sh" --no-interactive
+else
+  echo ".env.supabase exists; skipping generation. Remove file or set FORCE_GENERATE=1 to regenerate."
+fi
 
 echo "2) Start docker-compose supabase stack"
 # ensure variables from .env.supabase are exported so compose sees JWT_SECRET and keys
