@@ -83,6 +83,7 @@ cover/
 .env.sentry-build-plugin
 
 # Supabase local env (secrets)
+.env.supabase*
 .env.supabase
 
 

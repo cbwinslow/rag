@@ -68,10 +68,15 @@ async function handleSupabaseStore(request, env) {
   const text = await request.text()
   let stored = 0
   const errors = []
-  for (const line of text.split('\n')) {
-    if (!line.trim()) continue
+  async function processSupabaseDocLine(line) {
+    if (!line.trim()) return { skipped: true }
+    let doc
     try {
-      const doc = JSON.parse(line)
+      doc = JSON.parse(line)
+    } catch (e) {
+      return { error: `Parse error: ${e && e.message ? e.message : String(e)}` }
+    }
+    try {
       const supabaseResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/documents`, {
         method: 'POST',
         headers: {
@@ -88,11 +93,19 @@ async function handleSupabaseStore(request, env) {
           metadata: doc.metadata || {}
         })
       })
-      if (supabaseResponse.ok) stored++
-      else errors.push(`Failed to store ${doc.url}: ${supabaseResponse.status}`)
+      if (supabaseResponse.ok) return { ok: true }
+      return { error: `Failed to store ${doc.url}: ${supabaseResponse.status}` }
     } catch (e) {
-      errors.push(`Parse error: ${e && e.message ? e.message : String(e)}`)
+      return { error: `Upstream error: ${e && e.message ? e.message : String(e)}` }
     }
+  }
+
+  for (const line of text.split('\n')) {
+    const res = await processSupabaseDocLine(line)
+    if (!res) continue
+    if (res.skipped) continue
+    if (res.ok) stored++
+    else if (res.error) errors.push(res.error)
   }
   return new Response(JSON.stringify({ stored, errors }), { headers: { 'content-type': 'application/json' } })
 }
@@ -118,6 +131,28 @@ async function handleKVList(request, env) {
   const list = await env.AUTORAG_KV.list({ limit: 100 })
   return new Response(JSON.stringify(list), { headers: { 'content-type': 'application/json' } })
 }
+async function fetchAndCache(request, targetUrl, opts = {}) {
+  const cache = caches.default
+  const cacheKey = new Request(targetUrl)
+  let resp = await cache.match(cacheKey)
+  if (resp) return resp
+  let init = opts || {}
+  init.cf = init.cf || { scrapeShield: true }
+  try {
+    resp = await fetch(targetUrl, init)
+  } catch (e) {
+    // Avoid exposing internal error structure; return a simple upstream-failed response
+    const msg = e && e.message ? e.message : String(e)
+    safeLog('fetchAndCache upstream fetch failed', msg)
+    return new Response('Upstream fetch failed', { status: 502 })
+  }
+  if (resp && resp.status >= 200 && resp.status < 400) {
+    const clone = resp.clone()
+    // event isn't available here; use background put
+    cache.put(cacheKey, clone).catch(() => {})
+  }
+  return resp
+}
 
 export default {
   async fetch(request, env) {
@@ -127,50 +162,27 @@ export default {
     const proxied = await handleProxyIfNeeded(request, env, url)
     if (proxied) return proxied
 
-  // Route: /fetch?path=/path -> opendiscourse
-  if (url.pathname === '/fetch') return handleFetchRoute(request, env, url)
+    // Route: /fetch?path=/path -> opendiscourse
+    if (url.pathname === '/fetch') return handleFetchRoute(request, env, url)
 
-  // Route: /govinfo?type=api|bulk
-  if (url.pathname === '/govinfo') return handleGovinfoRoute(request, env, url)
+    // Route: /govinfo?type=api|bulk
+    if (url.pathname === '/govinfo') return handleGovinfoRoute(request, env, url)
 
-  // Route: /congress?path=/search
-  if (url.pathname === '/congress') return handleCongressRoute(request, env, url)
+    // Route: /congress?path=/search
+    if (url.pathname === '/congress') return handleCongressRoute(request, env, url)
 
-  // Route: /store - accept POST NDJSON and store into KV (requires AUTORAG_API_KEY to be set in env or passed as api_key)
-  if (url.pathname === '/store' && request.method === 'POST') return handleStore(request, env)
+    // Route: /store - accept POST NDJSON and store into KV (requires AUTORAG_API_KEY to be set in env or passed as api_key)
+    if (url.pathname === '/store' && request.method === 'POST') return handleStore(request, env)
 
-  // Route: /supabase/store - Store documents in Supabase tables
-  if (url.pathname === '/supabase/store' && request.method === 'POST') return handleSupabaseStore(request, env)
+    // Route: /supabase/store - Store documents in Supabase tables
+    if (url.pathname === '/supabase/store' && request.method === 'POST') return handleSupabaseStore(request, env)
 
-  // Route: /supabase/search - Search documents in Supabase
-  if (url.pathname === '/supabase/search') return handleSupabaseSearch(request, env)
+    // Route: /supabase/search - Search documents in Supabase
+    if (url.pathname === '/supabase/search') return handleSupabaseSearch(request, env)
 
-  // Route: /kv/list - list keys (admin/debug) - restricted by env.AUTH or similar in production
-  if (url.pathname === '/kv/list') return handleKVList(request, env)
+    // Route: /kv/list - list keys (admin/debug) - restricted by env.AUTH or similar in production
+    if (url.pathname === '/kv/list') return handleKVList(request, env)
 
     return new Response('RAG Cloudflare Worker: use /fetch, /govinfo, /congress, /supabase/store, /supabase/search', { status: 200 })
   }
 }
-
-    async function fetchAndCache(request, targetUrl, opts = {}) {
-      const cache = caches.default
-      const cacheKey = new Request(targetUrl)
-      let resp = await cache.match(cacheKey)
-      if (resp) return resp
-      let init = opts || {}
-      init.cf = init.cf || { scrapeShield: true }
-      try {
-        resp = await fetch(targetUrl, init)
-      } catch (e) {
-        // Avoid exposing internal error structure; return a simple upstream-failed response
-        const msg = e && e.message ? e.message : String(e)
-        try { console.debug('fetchAndCache upstream fetch failed', msg) } catch (_) {}
-        return new Response('Upstream fetch failed', { status: 502 })
-      }
-      if (resp && resp.status >= 200 && resp.status < 400) {
-        const clone = resp.clone()
-        // event isn't available here; use background put
-        cache.put(cacheKey, clone).catch(() => {})
-      }
-      return resp
-    }

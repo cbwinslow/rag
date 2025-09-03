@@ -2,10 +2,22 @@
 set -euo pipefail
 
 # create_cloudflare_assets.sh
-# Create all necessary Cloudflare assets for the RAG system
+# Create or reuse necessary Cloudflare assets for the RAG system
 # Requires: CF_API_TOKEN, CF_ACCOUNT_ID
 
-echo "Creating Cloudflare assets for RAG system..."
+BASE_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+DATA_DIR="$BASE_DIR/data"
+WRANGLER_FILE="$BASE_DIR/scripts/cloudflare/wrangler.toml"
+
+echo "[info] Cloudflare assets script starting (BASE_DIR=$BASE_DIR)"
+
+# tool checks
+for bin in curl jq; do
+  if ! command -v "$bin" >/dev/null 2>&1; then
+    echo "Error: $bin is required but not installed. Install and retry."
+    exit 1
+  fi
+done
 
 # Check for required environment variables
 if [ -z "${CF_API_TOKEN:-}" ] || [ -z "${CF_ACCOUNT_ID:-}" ]; then
@@ -13,96 +25,117 @@ if [ -z "${CF_API_TOKEN:-}" ] || [ -z "${CF_ACCOUNT_ID:-}" ]; then
   exit 1
 fi
 
-# Create KV namespace
-echo "Creating KV namespace..."
-KV_RESPONSE=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces" \
-  -H "Authorization: Bearer $CF_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  --data '{"title": "rag-autorag-kv"}')
+API_HDR=( -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" )
 
-KV_ID=$(echo $KV_RESPONSE | jq -r '.result.id')
-if [ "$KV_ID" = "null" ] || [ -z "$KV_ID" ]; then
-  echo "Failed to create KV namespace"
-  echo "Response: $KV_RESPONSE"
-  exit 1
+mkdir -p "$DATA_DIR"
+
+reuse_or_create_kv() {
+  local title="$1"
+  echo "[info] ensuring KV namespace '$title'"
+  # try to find existing namespace
+  local list
+  list=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces" "${API_HDR[@]}")
+  local existing
+  existing=$(echo "$list" | jq -r --arg t "$title" '.result[] | select(.title==$t) | .id' | head -n1 || true)
+  if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+    echo "[info] found existing KV namespace: $existing"
+    echo "$existing"
+    return 0
+  fi
+
+  local resp
+  resp=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces" "${API_HDR[@]}" --data "{\"title\": \"$title\"}")
+  local id
+  id=$(echo "$resp" | jq -r '.result.id // empty') || true
+  if [ -n "$id" ]; then
+    echo "[info] created KV namespace: $id"
+    echo "$id"
+    return 0
+  fi
+  echo "[warn] failed to create KV namespace; response: $resp"
+  return 1
+}
+
+reuse_or_create_d1() {
+  local name="$1"
+  echo "[info] ensuring D1 database '$name'"
+  local list
+  list=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/d1/database" "${API_HDR[@]}" || true)
+  local existing
+  existing=$(echo "$list" | jq -r --arg n "$name" '.result[] | select(.name==$n) | .uuid' | head -n1 || true)
+  if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+    echo "[info] found existing D1 database: $existing"
+    echo "$existing"
+    return 0
+  fi
+  local resp
+  resp=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/d1/database" "${API_HDR[@]}" --data "{\"name\": \"$name\"}" || true)
+  local id
+  id=$(echo "$resp" | jq -r '.result.uuid // empty' || true)
+  if [ -n "$id" ]; then
+    echo "[info] created D1 database: $id"
+    echo "$id"
+    return 0
+  fi
+  echo "[warn] failed to create D1 database; response: $resp"
+  return 1
+}
+
+reuse_or_create_r2() {
+  local bucket_name="$1"
+  echo "[info] ensuring R2 bucket '$bucket_name'"
+  local list
+  list=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets" "${API_HDR[@]}" || true)
+  local existing
+  existing=$(echo "$list" | jq -r --arg b "$bucket_name" '.result[] | select(.name==$b) | .id' | head -n1 || true)
+  if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+    echo "[info] found existing R2 bucket: $existing"
+    echo "$existing"
+    return 0
+  fi
+  local resp
+  resp=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets" "${API_HDR[@]}" --data "{\"name\": \"$bucket_name\"}" || true)
+  local id
+  id=$(echo "$resp" | jq -r '.result.id // empty' || true)
+  if [ -n "$id" ]; then
+    echo "[info] created R2 bucket: $id"
+    echo "$id"
+    return 0
+  fi
+  echo "[warn] failed to create R2 bucket; response: $resp"
+  return 1
+}
+
+echo "[info] creating or reusing assets (this may be idempotent)"
+KV_ID=$(reuse_or_create_kv "rag-autorag-kv") || true
+D1_ID=$(reuse_or_create_d1 "rag_documents") || true
+R2_ID=$(reuse_or_create_r2 "rag-documents") || true
+
+echo "[info] KV_ID=$KV_ID D1_ID=$D1_ID R2_ID=$R2_ID"
+
+# Update wrangler.toml placeholders if present
+if [ -f "$WRANGLER_FILE" ]; then
+  echo "[info] updating $WRANGLER_FILE with asset ids"
+  [ -n "$KV_ID" ] && sed -i "s/YOUR_AUTORAG_KV_ID/$KV_ID/g" "$WRANGLER_FILE" || true
+  [ -n "$D1_ID" ] && sed -i "s/YOUR_D1_DATABASE_ID/$D1_ID/g" "$WRANGLER_FILE" || true
+  [ -n "$R2_ID" ] && sed -i "s/YOUR_R2_BUCKET_ID/$R2_ID/g" "$WRANGLER_FILE" || true
 fi
-echo "Created KV namespace: $KV_ID"
 
-# Create D1 database
-echo "Creating D1 database..."
-D1_RESPONSE=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/d1/database" \
-  -H "Authorization: Bearer $CF_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  --data '{"name": "rag_documents"}')
-
-D1_ID=$(echo $D1_RESPONSE | jq -r '.result.uuid')
-if [ "$D1_ID" = "null" ] || [ -z "$D1_ID" ]; then
-  echo "Failed to create D1 database"
-  echo "Response: $D1_RESPONSE"
-  exit 1
+# Create D1 tables if D1 available
+if [ -n "$D1_ID" ]; then
+  echo "[info] creating D1 tables (if not exist)"
+  D1_Q='[{"sql": "CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT UNIQUE, title TEXT, content TEXT, source TEXT, date TEXT, metadata TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)", "params": []}]'
+  D1_QUERY_RESPONSE=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/d1/database/$D1_ID/query" "${API_HDR[@]}" --data "$D1_Q" || true)
+  if echo "$D1_QUERY_RESPONSE" | jq -e '.success' >/dev/null 2>&1; then
+    echo "[info] Created/verified D1 tables"
+  else
+    echo "[warn] D1 table creation response: $D1_QUERY_RESPONSE"
+  fi
 fi
-echo "Created D1 database: $D1_ID"
-
-# Create R2 bucket
-echo "Creating R2 bucket..."
-R2_RESPONSE=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets" \
-  -H "Authorization: Bearer $CF_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  --data '{"name": "rag-documents"}')
-
-R2_ID=$(echo $R2_RESPONSE | jq -r '.result.id')
-if [ "$R2_ID" = "null" ] || [ -z "$R2_ID" ]; then
-  echo "Failed to create R2 bucket"
-  echo "Response: $R2_RESPONSE"
-  exit 1
-fi
-echo "Created R2 bucket: $R2_ID"
-
-# Update wrangler.toml with the actual IDs
-WRANGLER_FILE="/home/cbwinslow/rag/scripts/cloudflare/wrangler.toml"
-sed -i "s/YOUR_AUTORAG_KV_ID/$KV_ID/g" "$WRANGLER_FILE"
-sed -i "s/YOUR_D1_DATABASE_ID/$D1_ID/g" "$WRANGLER_FILE"
-sed -i "s/YOUR_R2_BUCKET_ID/$R2_ID/g" "$WRANGLER_FILE"
-
-echo "Updated wrangler.toml with asset IDs"
-
-# Create D1 tables
-echo "Creating D1 tables..."
-D1_QUERY_RESPONSE=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/d1/database/$D1_ID/query" \
-  -H "Authorization: Bearer $CF_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  --data '[{"sql": "CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT UNIQUE, title TEXT, content TEXT, source TEXT, date TEXT, metadata TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)", "params": []}]')
-
-if ! echo $D1_QUERY_RESPONSE | jq -e '.success' >/dev/null; then
-  echo "Failed to create D1 tables"
-  echo "Response: $D1_QUERY_RESPONSE"
-  exit 1
-fi
-
-echo "Created D1 tables successfully"
-
-# Output the asset information
-cat << EOF
-Cloudflare assets created successfully!
-
-Asset IDs:
-- KV Namespace: $KV_ID
-- D1 Database: $D1_ID
-- R2 Bucket: $R2_ID
-
-Next steps:
-1. Set up Supabase project and get SUPABASE_URL and SUPABASE_ANON_KEY
-2. Update wrangler.toml with your Supabase credentials
-3. Run: wrangler secret put SUPABASE_URL
-4. Run: wrangler secret put SUPABASE_ANON_KEY
-5. Deploy the worker: wrangler deploy
-
-Asset information saved to: /home/cbwinslow/rag/data/cloudflare_assets.json
-EOF
 
 # Save asset information
-mkdir -p /home/cbwinslow/rag/data
-cat > /home/cbwinslow/rag/data/cloudflare_assets.json << EOF
+ASSETS_FILE="$DATA_DIR/cloudflare_assets.json"
+cat > "$ASSETS_FILE" << EOF
 {
   "kv_namespace_id": "$KV_ID",
   "d1_database_id": "$D1_ID",
@@ -111,8 +144,10 @@ cat > /home/cbwinslow/rag/data/cloudflare_assets.json << EOF
 }
 EOF
 
-# Upload local supabase artifacts to R2 (if files exist)
-echo "Uploading local Supabase artifacts to R2 bucket..."
+echo "[info] Assets recorded to $ASSETS_FILE"
+
+# Upload local supabase artifacts to R2 (best-effort)
+echo "[info] Uploading local Supabase artifacts to R2 bucket (best-effort)"
 
 R2_BUCKET_NAME="rag-documents"
 
@@ -120,56 +155,38 @@ upload_to_r2() {
   local file_path="$1"
   local object_key="$2"
   if [ ! -f "$file_path" ]; then
-    echo "Skipping $file_path — not found"
+    echo "[info] skipping $file_path — not found"
     return 0
   fi
-
-  # Create an unsigned URL via the Cloudflare API for object upload (requires account-level API)
-  # Note: R2 supports an S3-compatible API; alternatively, use signed URLs or bucket keys.
-  UPLOAD_URL="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets/$R2_BUCKET_NAME/objects/$object_key"
-
-  echo "Uploading $file_path -> $object_key"
-  HTTP_RESPONSE=$(curl -sS -X PUT "$UPLOAD_URL" \
-    -H "Authorization: Bearer $CF_API_TOKEN" \
-    -H "Content-Type: application/octet-stream" \
-    --data-binary "@$file_path" || true)
-
+  local upload_url="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/r2/buckets/$R2_BUCKET_NAME/objects/$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$object_key")"
+  echo "[info] uploading $file_path -> $object_key"
+  HTTP_RESPONSE=$(curl -sS -X PUT "$upload_url" "${API_HDR[@]}" -H "Content-Type: application/octet-stream" --data-binary "@$file_path" || true)
   if [ -z "$HTTP_RESPONSE" ]; then
-    echo "Uploaded $object_key"
+    echo "[info] uploaded $object_key (no body returned)"
   else
-    echo "Response: $HTTP_RESPONSE"
+    # if CF returns a JSON success blob, print a short summary
+    echo "[info] upload response: $(echo "$HTTP_RESPONSE" | jq -c '. | {success: .success, result: (.result // "")}' 2>/dev/null || echo "$HTTP_RESPONSE")"
   fi
 }
 
 # Determine files to upload
-BASE_DIR="/home/cbwinslow/rag"
 COMPOSE_FILE="$BASE_DIR/deploy/compose/docker-compose-supabase.yml"
 ENV_FILE="$BASE_DIR/.env.supabase"
-SQL_DUMP_FILE="$BASE_DIR/data/supabase_schema.sql"
+SQL_DUMP_FILE="$DATA_DIR/supabase_schema.sql"
 
-# If SQL file doesn't exist, try to export the CREATE statements from the setup script (best-effort)
 if [ ! -f "$SQL_DUMP_FILE" ]; then
-  echo "Creating SQL dump placeholder at $SQL_DUMP_FILE"
-  mkdir -p "$BASE_DIR/data"
+  echo "[info] creating SQL dump placeholder at $SQL_DUMP_FILE"
   echo "-- Supabase schema for RAG documents" > "$SQL_DUMP_FILE"
   echo "-- Use scripts/cloudflare/setup_supabase.sh to apply schema live" >> "$SQL_DUMP_FILE"
 fi
 
 upload_to_r2 "$COMPOSE_FILE" "supabase/docker-compose-supabase.yml"
-# Only upload secrets file if UPLOAD_SECRETS=1
 if [ "${UPLOAD_SECRETS:-0}" = "1" ]; then
   upload_to_r2 "$ENV_FILE" "supabase/.env.supabase"
 else
-  echo "Skipping upload of .env.supabase (UPLOAD_SECRETS not set). To upload secrets set UPLOAD_SECRETS=1"
+  echo "[info] Skipping upload of .env.supabase (UPLOAD_SECRETS not set). To upload secrets set UPLOAD_SECRETS=1"
 fi
 upload_to_r2 "$SQL_DUMP_FILE" "supabase/supabase_schema.sql"
 
-# Record uploaded artifacts in cloudflare_assets.json
-jq --arg r2 "$R2_ID" \
-   --arg compose "supabase/docker-compose-supabase.yml" \
-   --arg env "supabase/.env.supabase" \
-   --arg sql "supabase/supabase_schema.sql" \
-   '. + {"r2_uploaded": {"compose": $compose, "env": $env, "sql": $sql}}' \
-   /home/cbwinslow/rag/data/cloudflare_assets.json > /home/cbwinslow/rag/data/cloudflare_assets.json.tmp && mv /home/cbwinslow/rag/data/cloudflare_assets.json.tmp /home/cbwinslow/rag/data/cloudflare_assets.json
+echo "[info] Finished creating/updating Cloudflare assets"
 
-echo "Uploaded assets metadata updated in /home/cbwinslow/rag/data/cloudflare_assets.json"

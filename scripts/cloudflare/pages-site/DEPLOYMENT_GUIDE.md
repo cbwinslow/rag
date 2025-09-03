@@ -29,10 +29,12 @@ scripts/cloudflare/pages-site/
 Add these lines to your `~/.bash_secrets` file:
 
 ```bash
-export CF_API_TOKEN='gKob2mQisfZo4JlzOmNct1VR9IEK0rn2rTFM4hH0'
-export CF_ACCOUNT_ID='968ff4ee9f5e59bc6c72758269d6b9d6'
+export CF_API_TOKEN='REPLACE_WITH_YOUR_CLOUDFLARE_API_TOKEN'
+export CF_ACCOUNT_ID='REPLACE_WITH_YOUR_CLOUDFLARE_ACCOUNT_ID'
 export GOVINFO_API_KEY='your_govinfo_api_key_here'
 export AUTORAG_API_KEY='your_autorag_api_key_here'
+
+Note: A Cloudflare API token or account id that was previously committed has been removed from this repository. If you previously published secrets into the repo, rotate those credentials immediately and update any affected services to use the new tokens.
 export REPO='cbwinslow/rag'
 ```
 
