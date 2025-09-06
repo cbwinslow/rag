@@ -695,9 +695,14 @@ class NvidiaRAG():
                         start_time = time.time()
                         docs = context_reranker.invoke({"context": docs, "question": query}, config={'run_name':'context_reranker'})
                     finally:
+                        logger.debug("Disconnecting %d vector store connections", len(vector_stores))
                         for vs in vector_stores:
                             if hasattr(vs, 'disconnect'):
-                                vs.disconnect()
+                                try:
+                                    vs.disconnect()
+                                    logger.debug("Successfully disconnected vector store: %s", str(vs))
+                                except Exception as e:
+                                    logger.error("Failed to disconnect vector store: %s", str(e), exc_info=True)
                     logger.info("    == Context reranker time: %.2f ms ==", (time.time() - start_time) * 1000)
                     context_to_show = docs.get("context", [])
                     # Normalize scores to 0-1 range

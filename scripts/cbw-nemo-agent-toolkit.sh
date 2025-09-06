@@ -60,6 +60,10 @@ NO_DOCKER=false
 SKIP_EXAMPLES=false
 NO_VENV=false
 NVIDIA_API_KEY="${NVIDIA_API_KEY:-}"
+# Mirror to APP_ prefixed variable for config consistency
+if [ -n "${NVIDIA_API_KEY:-}" ]; then
+  export APP_NVIDIA_API_KEY="$NVIDIA_API_KEY"
+fi
 VENV_DIR=".venv"
 LOG_DIR="deploy_logs"
 SLEEP_AFTER_START=6

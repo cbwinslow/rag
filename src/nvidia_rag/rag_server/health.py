@@ -135,12 +135,16 @@ async def check_minio_health(endpoint: str, access_key: str, secret_key: str) ->
     return status
 
 async def check_milvus_health(url: str) -> Dict[str, Any]:
-    """Check Milvus database health"""
+    """Check Milvus database health with GPU config validation"""
     status = {
         "service": "Milvus",
         "url": url,
         "status": "unknown",
-        "error": None
+        "error": None,
+        "gpu_config": {
+            "indexing": os.getenv("APP_VECTORSTORE_ENABLEGPUINDEX", "False"),
+            "search": os.getenv("APP_VECTORSTORE_ENABLEGPUSEARCH", "False")
+        }
     }
 
     if not url:

@@ -5,6 +5,44 @@ function safeLog(...args) {
   }
 }
 
+// Helper: parse a single NDJSON line into a document or an error/skip marker
+export function parseJSONLine(line) {
+  if (!line || !line.trim()) return { skipped: true }
+  try {
+    const doc = JSON.parse(line)
+    return { doc }
+  } catch (e) {
+    return { error: `Parse error: ${e && e.message ? e.message : String(e)}` }
+  }
+}
+
+// Exported helper: insert a document into Supabase via REST; accepts env to make testing possible
+export async function insertDocToSupabase(doc, env) {
+  try {
+    const resp = await fetch(`${env.SUPABASE_URL}/rest/v1/documents`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
+        'apikey': env.SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        url: doc.url,
+        title: doc.title,
+        content: doc.content,
+        source: doc.source,
+        date: doc.date,
+        metadata: doc.metadata || {}
+      })
+    })
+    if (resp && resp.ok) return { ok: true }
+    return { error: `Failed to store ${doc && doc.url ? doc.url : '<unknown>'}: ${resp.status}` }
+  } catch (e) {
+    safeLog('insertDocToSupabase error', e && e.message ? e.message : String(e))
+    return { error: `Upstream error: ${e && e.message ? e.message : String(e)}` }
+  }
+}
+
 async function handleProxyIfNeeded(request, env, url) {
   if (url.pathname.startsWith('/v1/chat')) return handleProxyRequest(request, env.RAG_SERVICE_URL)
   if (url.pathname.startsWith('/v1/ingest')) return handleProxyRequest(request, env.INGESTOR_SERVICE_URL)
@@ -28,7 +66,8 @@ async function handleGovinfoRoute(request, env, url) {
   const q = url.searchParams.get('query') || ''
   let target = 'https://api.govinfo.gov' + apiPath
   if (q) target += (target.includes('?') ? '&' : '?') + `query=${encodeURIComponent(q)}`
-  const apiKey = env && env.GOVINFO_API_KEY ? env.GOVINFO_API_KEY : url.searchParams.get('api_key')
+  // Prefer APP_ prefixed env name for consistency with repo convention; fall back for backwards compatibility
+  const apiKey = env && (env.APP_GOVINFO_API_KEY || env.GOVINFO_API_KEY) ? (env.APP_GOVINFO_API_KEY || env.GOVINFO_API_KEY) : url.searchParams.get('api_key')
   if (apiKey) target += (target.includes('?') ? '&' : '?') + `api_key=${encodeURIComponent(apiKey)}`
   return fetchAndCache(request, target, { headers: { Accept: 'application/json' } })
 }
@@ -40,9 +79,9 @@ async function handleCongressRoute(request, env, url) {
 }
 
 async function handleStore(request, env) {
-  const apiKey = env && env.AUTORAG_API_KEY ? env.AUTORAG_API_KEY : new URL(request.url).searchParams.get('api_key')
+  const apiKey = env && (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY) ? (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY) : new URL(request.url).searchParams.get('api_key')
   if (!apiKey) return new Response('api_key required', { status: 401 })
-  if (env && env.AUTORAG_API_KEY && apiKey !== env.AUTORAG_API_KEY) return new Response('invalid api_key', { status: 403 })
+  if (env && (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY) && apiKey !== (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY)) return new Response('invalid api_key', { status: 403 })
   if (!env || !env.AUTORAG_KV) return new Response('KV binding not configured', { status: 500 })
   const text = await request.text()
   let count = 0
@@ -61,52 +100,31 @@ async function handleStore(request, env) {
 }
 
 async function handleSupabaseStore(request, env) {
-  const apiKey = env && env.AUTORAG_API_KEY ? env.AUTORAG_API_KEY : new URL(request.url).searchParams.get('api_key')
+  const apiKey = env && (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY) ? (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY) : new URL(request.url).searchParams.get('api_key')
   if (!apiKey) return new Response('api_key required', { status: 401 })
-  if (env && env.AUTORAG_API_KEY && apiKey !== env.AUTORAG_API_KEY) return new Response('invalid api_key', { status: 403 })
+  if (env && (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY) && apiKey !== (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY)) return new Response('invalid api_key', { status: 403 })
   if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return new Response('Supabase configuration missing', { status: 500 })
+
+  // Small helper: parse a single NDJSON line into a document or an error object
+  // Use the exported helpers above (parseJSONLine and insertDocToSupabase)
+
   const text = await request.text()
   let stored = 0
   const errors = []
-  async function processSupabaseDocLine(line) {
-    if (!line.trim()) return { skipped: true }
-    let doc
-    try {
-      doc = JSON.parse(line)
-    } catch (e) {
-      return { error: `Parse error: ${e && e.message ? e.message : String(e)}` }
-    }
-    try {
-      const supabaseResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/documents`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
-          'apikey': env.SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({
-          url: doc.url,
-          title: doc.title,
-          content: doc.content,
-          source: doc.source,
-          date: doc.date,
-          metadata: doc.metadata || {}
-        })
-      })
-      if (supabaseResponse.ok) return { ok: true }
-      return { error: `Failed to store ${doc.url}: ${supabaseResponse.status}` }
-    } catch (e) {
-      return { error: `Upstream error: ${e && e.message ? e.message : String(e)}` }
-    }
-  }
 
   for (const line of text.split('\n')) {
-    const res = await processSupabaseDocLine(line)
-    if (!res) continue
-    if (res.skipped) continue
+  const parsed = parseJSONLine(line)
+    if (!parsed) continue
+    if (parsed.skipped) continue
+    if (parsed.error) {
+      errors.push(parsed.error)
+      continue
+    }
+  const res = await insertDocToSupabase(parsed.doc, env)
     if (res.ok) stored++
     else if (res.error) errors.push(res.error)
   }
+
   return new Response(JSON.stringify({ stored, errors }), { headers: { 'content-type': 'application/json' } })
 }
 
@@ -125,8 +143,8 @@ async function handleSupabaseSearch(request, env) {
 }
 
 async function handleKVList(request, env) {
-  const apiKey = env && env.AUTORAG_API_KEY ? env.AUTORAG_API_KEY : new URL(request.url).searchParams.get('api_key')
-  if (!apiKey || (env && env.AUTORAG_API_KEY && apiKey !== env.AUTORAG_API_KEY)) return new Response('forbidden', { status: 403 })
+  const apiKey = env && (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY) ? (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY) : new URL(request.url).searchParams.get('api_key')
+  if (!apiKey || (env && (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY) && apiKey !== (env.APP_AUTORAG_API_KEY || env.AUTORAG_API_KEY))) return new Response('forbidden', { status: 403 })
   if (!env || !env.AUTORAG_KV) return new Response('KV binding not configured', { status: 500 })
   const list = await env.AUTORAG_KV.list({ limit: 100 })
   return new Response(JSON.stringify(list), { headers: { 'content-type': 'application/json' } })

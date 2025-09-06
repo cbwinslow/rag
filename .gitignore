@@ -86,6 +86,10 @@ cover/
 .env.supabase*
 .env.supabase
 
+# Local dotenv files
+.env
+.env.local
+
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md

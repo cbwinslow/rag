@@ -56,6 +56,18 @@ The system includes:
 ./create_cloudflare_assets.sh
 ```
 
+
+## GitHub Actions secrets required for CI and Deploy workflows
+
+Set the following secrets in your repository's Settings → Secrets → Actions:
+
+- `CF_API_TOKEN` - Cloudflare API token with Workers/KV/D1/R2 permissions (used by the deploy workflow)
+- `GITHUB_TOKEN` - provided automatically by GitHub Actions (used to push images to GHCR)
+
+## Crew4AI
+
+We included a placeholder job for Crew4AI in `.github/workflows/security_and_deploy.yml`. Replace the placeholder step with the official Crew4AI Action or CLI invocation and add any required secrets to enable automated AI reviews and code reports.
+
 This creates:
 
 - KV Namespace: `rag-autorag-kv`
@@ -262,4 +274,20 @@ Notes:
 
 - The docker build workflow pushes to the GitHub Container Registry `ghcr.io/${{ github.repository_owner }}` using the default `GITHUB_TOKEN`. For cross-account pushes or external registries, set `CR_PAT` or use other secrets.
 - By default we DO NOT upload `.env.supabase` to Cloudflare R2. To enable that, set `UPLOAD_SECRETS=1` in the environment when running `create_cloudflare_assets.sh` locally or in a secure workflow (not recommended without encryption).
+
+## Publishing from this repo
+
+Use the helper script `scripts/cloudflare/publish.sh` to publish the Worker and assets.
+
+Examples:
+
+```bash
+# Dry-run to see actions
+./scripts/cloudflare/publish.sh --dry-run
+
+# Publish using wrangler (requires CF_API_TOKEN exported)
+export CF_API_TOKEN="..."
+./scripts/cloudflare/publish.sh
+```
+
 

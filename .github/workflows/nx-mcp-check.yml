@@ -1,0 +1,19 @@
+name: NX MCP readiness check
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  nx-mcp-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Run nx MCP check
+        run: |
+          chmod +x ./scripts/nx/check_nx_mcp.sh
+          ./scripts/nx/check_nx_mcp.sh

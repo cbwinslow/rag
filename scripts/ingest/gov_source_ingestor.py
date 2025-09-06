@@ -15,6 +15,7 @@ from urllib.parse import urljoin
 from nvidia_rag.utils.common import get_config
 from nvidia_rag.utils.vectorstore import create_vectorstore_langchain
 
+
 class GovDataIngestor:
     def __init__(self):
         self.config = get_config()
@@ -97,19 +98,20 @@ class GovDataIngestor:
         return document.get('text') or document.get('content') or ''
 
     def _create_metadata(self, document: Dict) -> Dict:
-        """Create standardized metadata"""
+        """Create standardized metadata."""
         return {
-            'source': 'govinfo' if 'download' in document else 'congress',
-            'date': document.get('dateIssued') or datetime.now().isoformat(),
-            'document_id': document.get('packageId') or document.get('id'),
-            'collection': document.get('collection')
+            "source": "govinfo" if "download" in document else "congress",
+            "date": document.get("dateIssued") or datetime.now().isoformat(),
+            "document_id": document.get("packageId") or document.get("id"),
+            "collection": document.get("collection"),
         }
+
 
 if __name__ == "__main__":
     ingestor = GovDataIngestor()
-    
+
     # Example usage:
     bulk_data = ingestor.fetch_govinfo_bulk("BILLS")
     congress_data = ingestor.fetch_congress_data("bill")
-    
+
     ingestor.process_and_store(bulk_data + congress_data)

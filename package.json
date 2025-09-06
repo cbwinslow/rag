@@ -1,4 +1,8 @@
 {
+  "type": "module",
+  "scripts": {
+    "test": "node ./scripts/cloudflare/test_parse_json_line.mjs && node ./scripts/cloudflare/test_insert_doc_to_supabase.mjs"
+  },
   "devDependencies": {
     "@types/node": "^22.13.4"
   },
@@ -6,3 +10,4 @@
     "@sentry/nextjs": "^10.7.0"
   }
 }
+

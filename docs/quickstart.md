@@ -222,7 +222,7 @@ Use the following procedure to start all containers needed for this blueprint. T
    nim-llm-ms                              Up 38 minutes (healthy)
    ```
 
-9.  Open a web browser and access `http://localhost:8090` to use the RAG Playground. You can use the upload tab to ingest files into the server or follow [the notebooks](../notebooks/) to understand the API usage.
+9.  Open a web browser and access `https://opendiscourse.net` to use the RAG Playground. You can use the upload tab to ingest files into the server or follow [the notebooks](../notebooks/) to understand the API usage.
 
 10. To stop all running services, after making some [customizations](#next-steps)
     ```bash

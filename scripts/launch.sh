@@ -116,7 +116,9 @@ if [ -z "${NGC_API_KEY:-}" ]; then
     exit 1
   fi
   export NGC_API_KEY="$NGC_API_KEY_INPUT"
+  # Also export APP_ prefixed environment variables for consistency with config loader
   export NVIDIA_API_KEY="$NGC_API_KEY_INPUT"
+  export APP_NGC_API_KEY="$NGC_API_KEY_INPUT"
 fi
 
 # MODE-specific overrides

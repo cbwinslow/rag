@@ -10,6 +10,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx}\""
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.2",
     "axios": "^1.9.0",
     "marked": "^15.0.7",
     "next": "15.4.0-canary.23",
@@ -30,6 +31,6 @@
     "prettier": "^3.5.0",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "5.9.2"
   }
 }

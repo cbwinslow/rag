@@ -196,3 +196,25 @@ This blueprint is governed by the [NVIDIA Agreements | Enterprise Software | NVI
 
 The following models that are built with Llama are governed by the [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/): llama-3.3-nemotron-super-49b-v1, nvidia/llama-3.2-nv-embedqa-1b-v2, and nvidia/llama-3.2-nv-rerankqa-1b-v2.
 
+## Secrets and local environment
+
+This repo uses dotenv-style environment variables for secrets. Never commit real secrets into the repository.
+
+Steps to follow locally:
+
+
+1. Copy `.env.example` to `.env` and fill in values locally.
+
+1. Ensure `.env` is listed in `.gitignore` (it is by default in this repo).
+
+1. Install the local git template to block accidental commits of secrets:
+
+   ```bash
+   bash scripts/git-template/install_template.sh
+   # For existing repos, run `git init` afterwards to apply the template hooks
+   ```
+
+1. CI includes a basic secret-scan workflow that will fail on obvious secret patterns. Expand the workflow patterns if you need stricter checks.
+
+If you need to store secrets for CI, use GitHub Actions Secrets or a secrets manager — do not store them in the repo.
+

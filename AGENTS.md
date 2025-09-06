@@ -73,4 +73,4 @@ This file provides guidance to agents when working with code in this repository.
 - No unit tests found in codebase
 - Testing done via Jupyter notebooks in `notebooks/` directory
 - API testing through notebook examples: `rag_library_usage.ipynb`, `ingestion_api_usage.ipynb`
-- Manual testing via RAG Playground UI at http://localhost:8090 when running locally
+- Manual testing via RAG Playground UI at https://opendiscourse.net

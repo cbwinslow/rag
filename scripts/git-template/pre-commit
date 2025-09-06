@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Pre-commit hook to detect likely secrets in staged files.
+set -euo pipefail
+# Simple patterns - extend as needed
+PATTERNS=(
+  "CLOUDFLARE_API_TOKEN"
+  "CLOUDFLARE_ACCOUNT_ID"
+  "GOVINFO_API_KEY"
+  "MINIO_SECRET_KEY"
+  "MINIO_ACCESS_KEY"
+  "AWS_SECRET_ACCESS_KEY"
+  "BEGIN RSA PRIVATE KEY"
+  "BEGIN PRIVATE KEY"
+  "PASSWORD="
+)
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+if [ -z "$STAGED_FILES" ]; then
+  exit 0
+fi
+failed=0
+for f in $STAGED_FILES; do
+  # Ignore binary files
+  if file --mime "$f" | grep -q binary; then
+    continue
+  fi
+  for p in "${PATTERNS[@]}"; do
+    if git show :"$f" | grep -n -E -I -- "${p}" >/dev/null 2>&1; then
+      echo "Potential secret pattern '${p}' found in $f"
+      failed=1
+    fi
+  done
+done
+if [ "$failed" -eq 1 ]; then
+  echo "Commit aborted. Remove secrets from staged files or move them to .env (and add .env to .gitignore)."
+  exit 1
+fi
+exit 0
